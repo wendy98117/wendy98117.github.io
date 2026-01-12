@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>可视化强化学习策略模拟小程序</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 30px auto;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .buttons-row button {
+            margin: 4px;
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid #007bff;
+            background-color: #fff;
+            cursor: pointer;
+        }
+        .buttons-row button:hover {
+            background-color: #e9f2ff;
+        }
+        .buttons-row button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .stats-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .stats-box {
+            flex: 1 1 260px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #eee;
+            padding: 4px 8px;
+            text-align: center;
+        }
+        .result-message {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .small {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+<h1>可视化强化学习策略模拟小程序</h1>
+<p style="text-align:center; margin-top:-10px; font-size:14px;">
+    —— 以多臂老虎机（Multi-Armed Bandit）为例
+</p>
+
+<div class="card">
+    <h2>1. 知识点与背景简介</h2>
+    <p>
+        本小程序以经典的多臂老虎机（Multi-Armed Bandit）问题为例，对强化学习中的
+        <strong>“探索–利用（exploration–exploitation）权衡”</strong>
+        进行可视化演示。假设有多台老虎机，每台机子的中奖概率不同且未知，智能体需要在有限次数内决定每一轮拉哪一台，目标是在长期内获得尽可能高的累计奖励。
+    </p>
+    <p>
+        在本示例中设置了 4 台老虎机，每台机子的真实中奖概率在
+        <code>0.2 ~ 0.9</code> 之间随机生成并对玩家保密。每次拉动某台机子会以该概率获得 1 分奖励。
+        玩家一侧由你手动选择要拉的机子；电脑一侧则采用简单但经典的
+        <strong>ε-greedy 策略</strong>：
+        以 90% 的概率选择当前估计平均收益最高的机子（偏向“利用”），以 10% 的概率随机选择任意机子（保留一定“探索”）。
+    </p>
+</div>
+
+<div class="card">
+    <h2>2. 游戏操作与交互说明</h2>
+    <button id="btnReset">开始新游戏</button>
+    <span class="small">（点击后会随机生成 4 台机子的中奖概率，并清空历史记录）</span>
+
+    <p>当前轮次：<span id="roundNum">0</span></p>
+
+    <div class="buttons-row">
+        <span><strong>玩家（你）选择要拉的老虎机：</strong></span><br>
+        <button class="userArmBtn" data-arm="0">选择老虎机 1</button>
+        <button class="userArmBtn" data-arm="1">选择老虎机 2</button>
+        <button class="userArmBtn" data-arm="2">选择老虎机 3</button>
+        <button class="userArmBtn" data-arm="3">选择老虎机 4</button>
+    </div>
+
+    <div class="buttons-row" style="margin-top: 10px;">
+        <span><strong>电脑（ε-greedy 策略）行动：</strong></span><br>
+        <button id="btnAIStep">让电脑走一轮</button>
+        <button id="btnAutoPlay">人机各自自动玩 10 轮 (快速模拟策略效果)</button>
+    </div>
+
+    <div class="result-message" id="lastMessage">
+        请先点击“开始新游戏”完成初始化，然后选择要拉的老虎机。
+    </div>
+</div>
+
+<div class="card">
+    <h2>3. 统计信息与策略效果对比</h2>
+    <div class="stats-container">
+        <div class="stats-box">
+            <h3>每台老虎机统计信息</h3>
+            <table>
+                <thead>
+                <tr>
+                    <th>老虎机</th>
+                    <th>真实中奖概率（调试可见）</th>
+                    <th>你选择次数</th>
+                    <th>你平均收益</th>
+                    <th>电脑选择次数</th>
+                    <th>电脑平均收益</th>
+                </tr>
+                </thead>
+                <tbody id="armsTableBody">
+                <!-- JS 填充 -->
+                </tbody>
+            </table>
+            <p class="small">
+                实际课堂演示或提交作业时，可以将“真实中奖概率”这一列隐藏，仅保留给自己调试与理解使用。
+            </p>
+        </div>
+
+        <div class="stats-box">
+            <h3>累计奖励（衡量策略好坏）</h3>
+            <p>你的总奖励：<span id="userTotalReward">0</span></p>
+            <p>电脑总奖励：<span id="aiTotalReward">0</span></p>
+            <p id="compareText"></p>
+            <p class="small">
+                强化学习中通常以<strong>累计奖励</strong>作为评价标准：在相同轮次数下，总奖励越高，说明策略越好。
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>4. 使用建议与观察要点</h2>
+    <ul>
+        <li>前几轮可以多尝试不同的老虎机，从“探索”的角度感受各台机子的大致水平。</li>
+        <li>随着轮数增加，可以尝试更多地选择目前平均收益较高的机子，体会“利用”带来的收益提升。</li>
+        <li>多次点击“人机各自自动玩 10 轮”，观察电脑使用 ε-greedy 策略后，是否会逐渐集中在某一两台最优机子上。</li>
+        <li>对比你和电脑的累计奖励差异，思考：<strong>纯随机/直觉选择</strong>与<strong>简单策略性选择</strong>之间有何区别。</li>
+    </ul>
+</div>
+
+<script>
+    const NUM_ARMS = 4;
+    let trueProbs = [];
+    let round = 0;
+
+    let userTotalReward = 0;
+    let aiTotalReward = 0;
+
+    let userCounts = [];
+    let userSums = [];
+    let aiCounts = [];
+    let aiSums = [];
+
+    const btnReset = document.getElementById('btnReset');
+    const btnAIStep = document.getElementById('btnAIStep');
+    const btnAutoPlay = document.getElementById('btnAutoPlay');
+    const userArmButtons = document.querySelectorAll('.userArmBtn');
+    const roundNumSpan = document.getElementById('roundNum');
+    const lastMessageDiv = document.getElementById('lastMessage');
+    const armsTableBody = document.getElementById('armsTableBody');
+    const userTotalRewardSpan = document.getElementById('userTotalReward');
+    const aiTotalRewardSpan = document.getElementById('aiTotalReward');
+    const compareTextP = document.getElementById('compareText');
+
+    function initGame() {
+        trueProbs = [];
+        for (let i = 0; i < NUM_ARMS; i++) {
+            // 0.2 ~ 0.9 随机概率
+            const p = 0.2 + Math.random() * 0.7;
+            trueProbs.push(p);
+        }
+        round = 0;
+        userTotalReward = 0;
+        aiTotalReward = 0;
+        userCounts = new Array(NUM_ARMS).fill(0);
+        userSums = new Array(NUM_ARMS).fill(0);
+        aiCounts = new Array(NUM_ARMS).fill(0);
+        aiSums = new Array(NUM_ARMS).fill(0);
+
+        roundNumSpan.textContent = round.toString();
+        userTotalRewardSpan.textContent = userTotalReward.toString();
+        aiTotalRewardSpan.textContent = aiTotalReward.toString();
+        compareTextP.textContent = "";
+        lastMessageDiv.textContent = "新游戏已开始，先随便探索几台机子，看看哪一台更“给力”。";
+
+        updateTable();
+        setButtonsEnabled(true);
+    }
+
+    function setButtonsEnabled(enabled) {
+        userArmButtons.forEach(btn => btn.disabled = !enabled);
+        btnAIStep.disabled = !enabled;
+        btnAutoPlay.disabled = !enabled;
+    }
+
+    function sampleReward(armIndex) {
+        const p = trueProbs[armIndex];
+        return Math.random() < p ? 1 : 0;
+    }
+
+    function updateTable() {
+        armsTableBody.innerHTML = "";
+        for (let i = 0; i < NUM_ARMS; i++) {
+            const tr = document.createElement('tr');
+
+            const tdName = document.createElement('td');
+            tdName.textContent = "老虎机 " + (i + 1);
+            tr.appendChild(tdName);
+
+            const tdProb = document.createElement('td');
+            tdProb.textContent = trueProbs[i].toFixed(2);
+            tr.appendChild(tdProb);
+
+            const tdUserCount = document.createElement('td');
+            tdUserCount.textContent = userCounts[i];
+            tr.appendChild(tdUserCount);
+
+            const tdUserAvg = document.createElement('td');
+            const userAvg = userCounts[i] === 0 ? "-" : (userSums[i] / userCounts[i]).toFixed(2);
+            tdUserAvg.textContent = userAvg;
+            tr.appendChild(tdUserAvg);
+
+            const tdAICount = document.createElement('td');
+            tdAICount.textContent = aiCounts[i];
+            tr.appendChild(tdAICount);
+
+            const tdAIAvg = document.createElement('td');
+            const aiAvg = aiCounts[i] === 0 ? "-" : (aiSums[i] / aiCounts[i]).toFixed(2);
+            tdAIAvg.textContent = aiAvg;
+            tr.appendChild(tdAIAvg);
+
+            armsTableBody.appendChild(tr);
+        }
+
+        userTotalRewardSpan.textContent = userTotalReward.toString();
+        aiTotalRewardSpan.textContent = aiTotalReward.toString();
+
+        if (userTotalReward > aiTotalReward) {
+            compareTextP.textContent = "当前你领先电脑 " + (userTotalReward - aiTotalReward) + " 分。";
+        } else if (aiTotalReward > userTotalReward) {
+            compareTextP.textContent = "当前电脑领先你 " + (aiTotalReward - userTotalReward) + " 分。";
+        } else {
+            compareTextP.textContent = "目前你和电脑打成平手。";
+        }
+    }
+
+    function userChooseArm(armIndex) {
+        if (trueProbs.length === 0) {
+            lastMessageDiv.textContent = "请先点击“开始新游戏”。";
+            return;
+        }
+        round++;
+        const reward = sampleReward(armIndex);
+        userTotalReward += reward;
+        userCounts[armIndex] += 1;
+        userSums[armIndex] += reward;
+
+        roundNumSpan.textContent = round.toString();
+
+        let msg = `第 ${round} 轮：你选择了老虎机 ${armIndex + 1}，本轮获得奖励 ${reward} 分。`;
+        if (userCounts[armIndex] <= 2) {
+            msg += " 目前你还在“探索”这台机子的真实水平。";
+        } else {
+            msg += " 你已经对这台机子的收益有一定估计，可以和其他机子做“对比与利用”。";
+        }
+
+        lastMessageDiv.textContent = msg;
+        updateTable();
+    }
+
+    function aiStep() {
+        if (trueProbs.length === 0) {
+            lastMessageDiv.textContent = "请先点击“开始新游戏”。";
+            return;
+        }
+        round++;
+
+        // epsilon-greedy
+        const epsilon = 0.1;
+        let chosenArm;
+        if (Math.random() < epsilon || aiCounts.every(c => c === 0)) {
+            // 探索：随机选择
+            chosenArm = Math.floor(Math.random() * NUM_ARMS);
+        } else {
+            // 利用：选择平均收益最高的机子
+            let bestAvg = -Infinity;
+            chosenArm = 0;
+            for (let i = 0; i < NUM_ARMS; i++) {
+                const avg = aiCounts[i] === 0 ? 0 : (aiSums[i] / aiCounts[i]);
+                if (avg > bestAvg) {
+                    bestAvg = avg;
+                    chosenArm = i;
+                }
+            }
+        }
+
+        const reward = sampleReward(chosenArm);
+        aiTotalReward += reward;
+        aiCounts[chosenArm] += 1;
+        aiSums[chosenArm] += reward;
+
+        roundNumSpan.textContent = round.toString();
+
+        let msg = `第 ${round} 轮：电脑选择了老虎机 ${chosenArm + 1}，本轮获得奖励 ${reward} 分。`;
+        msg += " 电脑使用 ε-greedy 策略：大部分时间偏向平均收益最高的机子进行“利用”，少部分时间随机“探索”其他机子。";
+
+        lastMessageDiv.textContent = msg;
+        updateTable();
+    }
+
+    function autoPlayRounds(n) {
+        for (let i = 0; i < n; i++) {
+            // 人机都玩一轮：先由“玩家”随机选择，再由电脑按策略选择
+            const userArm = Math.floor(Math.random() * NUM_ARMS);
+            userChooseArm(userArm);
+            aiStep();
+        }
+    }
+
+    // 事件绑定
+    btnReset.addEventListener('click', initGame);
+    userArmButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const armIndex = parseInt(btn.getAttribute('data-arm'));
+            userChooseArm(armIndex);
+        });
+    });
+    btnAIStep.addEventListener('click', aiStep);
+    btnAutoPlay.addEventListener('click', () => autoPlayRounds(10));
+
+    // 初始状态按钮可用，但提示先初始化
+    setButtonsEnabled(true);
+</script>
+
+</body>
+</html>
